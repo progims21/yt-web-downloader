@@ -135,6 +135,14 @@ st.markdown(f"""
     border-color: #C56950 !important;
 }}
 
+.custom-container {{
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+    background-color: rgba(222, 122, 95, 0.05);
+}}
+
 footer {{
     background-color: var(--primary-color) !important;
     color: var(--light-text) !important;
@@ -198,16 +206,16 @@ with st.expander("⚙️ خيارات التحميل المتقدمة", expanded
     with col3:
         custom_name = st.text_input("اسم الملف (اختياري):", placeholder="اسم الملف المخصص")
         
-    # خيارات إضافية
-    with st.expander("خيارات إضافية"):
-        col1, col2 = st.columns(2)
-        with col1:
-            start_time = st.number_input("وقت البداية (ثانية):", min_value=0, value=0)
-        with col2:
-            end_time = st.number_input("وقت النهاية (ثانية):", min_value=0, value=0)
-        
-        add_metadata = st.checkbox("إضافة معلومات الفيديو", value=True)
-        embed_thumbnail = st.checkbox("إضافة صورة مصغرة (للملفات الصوتية)", value=True)
+    # خيارات إضافية (بدلاً من expander متداخل)
+    st.markdown('<div class="custom-container"><h4>خيارات إضافية</h4></div>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        start_time = st.number_input("وقت البداية (ثانية):", min_value=0, value=0)
+    with col2:
+        end_time = st.number_input("وقت النهاية (ثانية):", min_value=0, value=0)
+    
+    add_metadata = st.checkbox("إضافة معلومات الفيديو", value=True)
+    embed_thumbnail = st.checkbox("إضافة صورة مصغرة (للملفات الصوتية)", value=True)
 
 # زر التحميل
 if st.button("🚀 بدء التحميل", use_container_width=True, type="primary"):
