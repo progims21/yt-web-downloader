@@ -2,292 +2,198 @@ import streamlit as st
 import subprocess
 import os
 import uuid
-import re
-import shutil
-from pathlib import Path
-import time
+import glob
+from datetime import datetime
 
-# Page configuration
+# إعداد صفحة Streamlit
 st.set_page_config(
-    page_title="المبرمجون الأحرار – YouTube Downloader", 
-    layout="centered", 
-    page_icon="📥"
+    page_title="المبرمجون الأحرار – YouTube Downloader Pro",
+    layout="centered",
+    page_icon="📥",
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# تحسينات الواجهة مع تنسيق متكامل
 st.markdown("""
 <style>
-    .main-header {
-        text-align: center;
-        color: #ff6b6b;
-        margin-bottom: 30px;
+    .stApp {
+        background-color: #f5f5f5;
     }
-    .download-info {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 5px;
+        padding: 10px 24px;
     }
-    .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
+    .stDownloadButton>button {
+        background-color: #2196F3;
+        color: white;
+        border-radius: 5px;
+        padding: 10px 24px;
     }
-    .error-box {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        color: #721c24;
-        padding: 15px;
+    .css-1aumxhk {
+        background-color: #ffffff;
         border-radius: 10px;
-        margin: 10px 0;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-header">📥 المبرمجون الأحرار – تحميل من YouTube</h1>', unsafe_allow_html=True)
+# هيكل الصفحة الرئيسية
+st.title("📥 المبرمجون الأحرار – أداة التحميل المتقدمة")
+st.markdown("""
+أداة متكاملة لتحميل الفيديوهات والموسيقى من YouTube بجودة عالية مع خيارات متقدمة.
+""")
 
-# Create downloads directory
-downloads_dir = Path("downloads")
-downloads_dir.mkdir(exist_ok=True)
+# شريط جانبي للإعدادات المتقدمة
+with st.sidebar:
+    st.header("⚙️ الإعدادات المتقدمة")
+    output_dir = st.text_input("مسار الحفظ:", "downloads")
+    max_retries = st.number_input("عدد محاولات إعادة التحميل:", min_value=1, max_value=10, value=3)
+    st.markdown("---")
+    st.markdown("**الإصدار 2.0**")
+    st.markdown("تم التطوير بواسطة المبرمجون الأحرار")
 
-def validate_youtube_url(url):
-    """Validate if the URL is a valid YouTube URL"""
-    youtube_patterns = [
-        r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/',
-        r'(https?://)?(www\.)?youtu\.be/',
-    ]
-    return any(re.match(pattern, url) for pattern in youtube_patterns)
-
-def get_video_info(url):
-    """Get video information using yt-dlp"""
-    try:
-        cmd = f'yt-dlp --print title --print duration --print uploader "{url}"'
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            return {
-                'title': lines[0] if len(lines) > 0 else 'Unknown',
-                'duration': lines[1] if len(lines) > 1 else 'Unknown',
-                'uploader': lines[2] if len(lines) > 2 else 'Unknown'
-            }
-    except Exception:
-        pass
-    return None
-
-def cleanup_old_files():
-    """Clean up files older than 1 hour"""
-    try:
-        current_time = time.time()
-        for file_path in downloads_dir.glob("*"):
-            if file_path.is_file() and (current_time - file_path.stat().st_mtime) > 3600:
-                file_path.unlink()
-    except Exception:
-        pass
-
-def download_video(url, format_option, quality, uid):
-    """Download video with improved error handling"""
-    template = str(downloads_dir / f"{uid}.%(ext)s")
-    
-    if format_option == "📺 فيديو":
-        if quality == "best":
-            format_selector = "best[height<=1080]"
-        else:
-            height = quality.replace('p', '')
-            format_selector = f"best[height<={height}]"
-        cmd = f'yt-dlp -f "{format_selector}" -o "{template}" "{url}"'
-    else:
-        cmd = f'yt-dlp -f "bestaudio" -x --audio-format mp3 --audio-quality 0 -o "{template}" "{url}"'
-    
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)
-        if result.returncode == 0:
-            # Find the downloaded file
-            for file_path in downloads_dir.glob(f"{uid}.*"):
-                return file_path
-        else:
-            raise Exception(result.stderr or "Download failed")
-    except subprocess.TimeoutExpired:
-        raise Exception("التحميل استغرق وقتاً أطول من المتوقع")
-    
-    return None
-
-# Main interface
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    url = st.text_input(
-        "أدخل رابط الفيديو:",
-        placeholder="https://www.youtube.com/watch?v=xxxx أو https://youtu.be/xxxx",
-        help="يدعم روابط YouTube و YouTube Shorts"
-    )
-
-with col2:
-    if st.button("🔍 معاينة"):
-        if url.strip() and validate_youtube_url(url):
-            with st.spinner("جاري جلب معلومات الفيديو..."):
-                video_info = get_video_info(url)
-                if video_info:
-                    st.session_state.video_info = video_info
-                else:
-                    st.error("لا يمكن جلب معلومات الفيديو")
-        elif url.strip():
-            st.error("رابط غير صالح. الرجاء إدخال رابط YouTube صحيح")
-
-# Display video info if available
-if hasattr(st.session_state, 'video_info') and st.session_state.video_info:
-    info = st.session_state.video_info
-    st.markdown(f"""
-    <div class="download-info">
-        <strong>📹 العنوان:</strong> {info['title']}<br>
-        <strong>⏱️ المدة:</strong> {info['duration']}<br>
-        <strong>👤 القناة:</strong> {info['uploader']}
-    </div>
-    """, unsafe_allow_html=True)
-
-# Download options
-col1, col2 = st.columns(2)
-
-with col1:
-    format_option = st.radio(
-        "اختر الصيغة:",
-        ["📺 فيديو", "🎵 صوت (MP3)"],
-        help="اختر فيديو للحصول على الصوت والصورة، أو صوت للحصول على MP3 فقط"
-    )
-
-with col2:
-    if format_option == "📺 فيديو":
-        quality = st.selectbox(
-            "الجودة:",
-            ["best", "1080p", "720p", "480p", "360p"],
-            help="best = أفضل جودة متاحة"
-        )
-    else:
-        quality = st.selectbox(
-            "جودة الصوت:",
-            ["أفضل جودة", "جودة عالية", "جودة متوسطة"],
-            help="أفضل جودة = 320kbps تقريباً"
-        )
-
-# Advanced options
-with st.expander("⚙️ خيارات متقدمة"):
-    col1, col2 = st.columns(2)
+# قسم الإدخال الرئيسي
+with st.container():
+    col1, col2 = st.columns([3, 1])
     with col1:
-        custom_name = st.text_input("اسم مخصص للملف (اختياري):")
+        url = st.text_input("أدخل رابط الفيديو أو القائمة التشغيلية:", placeholder="https://www.youtube.com/...")
+    
     with col2:
-        start_time = st.text_input("وقت البداية (mm:ss أو hh:mm:ss):", placeholder="مثال: 1:30")
-        end_time = st.text_input("وقت النهاية (mm:ss أو hh:mm:ss):", placeholder="مثال: 5:45")
-
-# Download button
-if st.button("🚀 ابدأ التحميل", type="primary", use_container_width=True):
-    if not url.strip():
-        st.warning("⚠️ الرجاء إدخال رابط صحيح")
-    elif not validate_youtube_url(url):
-        st.error("❌ الرابط المُدخل ليس رابط YouTube صحيح")
-    else:
-        # Clean up old files
-        cleanup_old_files()
-        
-        uid = str(uuid.uuid4())[:8]  # Shorter UID
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        try:
-            status_text.text("⏳ بدء التحميل...")
-            progress_bar.progress(25)
-            
-            downloaded_file = download_video(url, format_option, quality, uid)
-            progress_bar.progress(75)
-            
-            if downloaded_file and downloaded_file.exists():
-                progress_bar.progress(100)
-                status_text.empty()
-                
-                # Custom filename handling
-                final_filename = downloaded_file.name
-                if custom_name:
-                    extension = downloaded_file.suffix
-                    safe_name = re.sub(r'[^\w\s-]', '', custom_name)
-                    final_filename = f"{safe_name}{extension}"
-                
-                # Read file for download
-                with open(downloaded_file, "rb") as f:
-                    file_data = f.read()
-                
-                st.markdown(f"""
-                <div class="success-box">
-                    <strong>✅ تم التحميل بنجاح!</strong><br>
-                    📁 اسم الملف: {final_filename}<br>
-                    📊 حجم الملف: {len(file_data) / (1024*1024):.2f} MB
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.download_button(
-                    label="📂 تحميل الملف",
-                    data=file_data,
-                    file_name=final_filename,
-                    mime="application/octet-stream",
-                    use_container_width=True
-                )
-                
-                # Clean up the downloaded file
-                try:
-                    downloaded_file.unlink()
-                except Exception:
-                    pass
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 التحقق من الرابط"):
+            if url.strip():
+                st.session_state.verified = True
+                st.success("✔ الرابط صالح")
             else:
-                st.error("❌ فشل في التحميل. تأكد من صحة الرابط وإعادة المحاولة")
-                
-        except Exception as err:
-            progress_bar.empty()
-            status_text.empty()
-            st.markdown(f"""
-            <div class="error-box">
-                <strong>❌ حدث خطأ أثناء التحميل:</strong><br>
-                {str(err)}
-            </div>
-            """, unsafe_allow_html=True)
+                st.warning("⚠ الرجاء إدخال رابط")
 
-# Footer
+# خيارات التحميل
+with st.expander("🎚 خيارات التحميل", expanded=True):
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        format_option = st.radio("نوع الملف:", ["📺 فيديو", "🎵 صوت (MP3)", "🎞 صوت وفيديو منفصلين"])
+    
+    with col2:
+        if format_option == "📺 فيديو":
+            quality = st.selectbox("جودة الفيديو:", ["أفضل جودة متاحة", "4K (2160p)", "1080p", "720p", "480p", "360p"])
+        else:
+            quality = st.selectbox("جودة الصوت:", ["أفضل جودة", "320 كيلوبت/ثانية", "256 كيلوبت/ثانية", "192 كيلوبت/ثانية"])
+    
+    with col3:
+        custom_name = st.text_input("اسم مخصص للملف (اختياري):", placeholder="my_video")
+
+# زر التحميل الرئيسي
+if st.button("🚀 بدء التحميل الآن", use_container_width=True, type="primary"):
+    if not url.strip():
+        st.warning("⚠ الرجاء إدخال رابط صحيح")
+    else:
+        uid = str(uuid.uuid4())
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # بناء اسم الملف
+        if custom_name:
+            template = f"{output_dir}/{custom_name}.%(ext)s"
+        else:
+            template = f"{output_dir}/{uid}.%(ext)s"
+        
+        # بناء أمر التنزيل بناءً على الخيارات
+        try:
+            with st.spinner("⏳ جاري معالجة طلبك... الرجاء الانتظار"):
+                # سجل المحاولات
+                attempts = 0
+                success = False
+                
+                while attempts < max_retries and not success:
+                    attempts += 1
+                    try:
+                        if format_option == "📺 فيديو":
+                            quality_map = {
+                                "أفضل جودة متاحة": "bestvideo+bestaudio/best",
+                                "4K (2160p)": "313+bestaudio/308+bestaudio",
+                                "1080p": "137+bestaudio/248+bestaudio",
+                                "720p": "22",
+                                "480p": "135+bestaudio/244+bestaudio",
+                                "360p": "18"
+                            }
+                            cmd = f'yt-dlp -f "{quality_map[quality]}" --merge-output-format mp4 -o "{template}" "{url}"'
+                        elif format_option == "🎵 صوت (MP3)":
+                            quality_map = {
+                                "أفضل جودة": "bestaudio",
+                                "320 كيلوبت/ثانية": "--audio-quality 320K",
+                                "256 كيلوبت/ثانية": "--audio-quality 256K",
+                                "192 كيلوبت/ثانية": "--audio-quality 192K"
+                            }
+                            cmd = f'yt-dlp -x --audio-format mp3 {quality_map[quality]} -o "{template}" "{url}"'
+                        else:
+                            cmd = f'yt-dlp -f "bestvideo+bestaudio" -o "{output_dir}/%(title)s.%(ext)s" "{url}"'
+                        
+                        # تنفيذ الأمر
+                        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+                        success = True
+                        
+                        # معالجة الملف المحمل
+                        if format_option != "🎞 صوت وفيديو منفصلين":
+                            downloaded_files = glob.glob(f"{output_dir}/{custom_name}.*" if custom_name else f"{output_dir}/{uid}.*")
+                            if downloaded_files:
+                                file_path = downloaded_files[0]
+                                file_name = os.path.basename(file_path)
+                                
+                                with open(file_path, "rb") as f:
+                                    st.success(f"✅ تم التحميل بنجاح! (المحاولة {attempts})")
+                                    st.balloons()
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.download_button(
+                                            "📥 حمّل الملف الآن",
+                                            data=f,
+                                            file_name=file_name,
+                                            use_container_width=True
+                                        )
+                                    with col2:
+                                        st.write(f"**حجم الملف:** {os.path.getsize(file_path)/1024/1024:.2f} MB")
+                                        st.write(f"**وقت التحميل:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                                
+                                # حذف الملف المؤقت
+                                os.remove(file_path)
+                            else:
+                                st.error("❌ لم يتم العثور على الملف المحمل")
+                        else:
+                            st.success("✅ تم تحميل الملفات بنجاح في مجلد التنزيلات")
+                            st.info("تم حفظ ملفات الفيديو والصوت بشكل منفصل في المجلد المحدد")
+                    
+                    except subprocess.CalledProcessError as e:
+                        if attempts >= max_retries:
+                            st.error(f"❌ فشل التحميل بعد {max_retries} محاولات. الخطأ: {e.stderr}")
+                        else:
+                            st.warning(f"⚠ المحاولة {attempts} فشلت، جاري إعادة المحاولة...")
+                            continue
+                
+        except Exception as e:
+            st.error(f"❌ حدث خطأ غير متوقع: {str(e)}")
+
+# قسم سجل التحميلات
+if st.checkbox("عرض سجل التحميلات"):
+    if os.path.exists(output_dir) and os.listdir(output_dir):
+        st.subheader("📜 الملفات المحملة مسبقاً")
+        files = os.listdir(output_dir)
+        for file in files:
+            file_path = os.path.join(output_dir, file)
+            file_time = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+            st.write(f"- **{file}** (آخر تعديل: {file_time})")
+    else:
+        st.info("لا توجد ملفات محملة مسبقاً")
+
+# تذييل الصفحة
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; margin-top: 30px;'>
-    <p>🔧 تم تطويره بواسطة المبرمجون الأحرار</p>
-    <p>⚠️ يرجى احترام حقوق الطبع والنشر عند استخدام هذه الأداة</p>
+<div style="text-align: center;">
+    <p><strong>المبرمجون الأحرار - YouTube Downloader Pro</strong></p>
+    <p>الإصدار 2.0 | © 2023 جميع الحقوق محفوظة</p>
+    <p>للتواصل: <a href="mailto:support@freeprogrammers.com">support@freeprogrammers.com</a></p>
 </div>
 """, unsafe_allow_html=True)
-
-# Sidebar with instructions
-with st.sidebar:
-    st.header("📖 تعليمات الاستخدام")
-    st.markdown("""
-    **كيفية الاستخدام:**
-    1. انسخ رابط الفيديو من YouTube
-    2. الصقه في الحقل المخصص
-    3. اضغط "معاينة" لرؤية معلومات الفيديو
-    4. اختر الصيغة والجودة المطلوبة
-    5. اضغط "ابدأ التحميل"
-    
-    **أنواع الروابط المدعومة:**
-    - `youtube.com/watch?v=...`
-    - `youtu.be/...`
-    - YouTube Shorts
-    - قوائم التشغيل (سيتم تحميل الفيديو الأول)
-    
-    **نصائح:**
-    - استخدم "best" للحصول على أفضل جودة
-    - ملفات MP3 تكون أصغر حجماً
-    - يمكنك تخصيص اسم الملف
-    """)
-    
-    st.header("🆘 استكشاف الأخطاء")
-    st.markdown("""
-    **إذا واجهت مشاكل:**
-    - تأكد من صحة الرابط
-    - جرب جودة أقل
-    - تأكد من اتصال الإنترنت
-    - بعض الفيديوهات قد تكون محمية
-    """)
