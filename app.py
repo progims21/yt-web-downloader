@@ -6,19 +6,20 @@ import glob
 from datetime import datetime
 import webbrowser
 import re
+import time  # Added missing import
 
-# إعدادات الصفحة
+# Page settings
 st.set_page_config(
     page_title="🎬 نظام التحميل الفني المتقدم",
     page_icon="⬇️",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'About': "### نظام التحميل الفني المتقدم\nإصدار 4.0\nالمطور: طالب الأنظمة الطبية\nالدعم: rshqrwsy@gmail.com"
+        'About': "### نظام التحميل الفني المتقدم\nإصدار 4.1\nالمطور: طالب الأنظمة الطبية\nالدعم: rshqrwsy@gmail.com"
     }
 )
 
-# ألوان فنية (#F4d0c9 و #43022e) مع موشن محسن
+# Enhanced colors and animations
 st.markdown("""
 <style>
 :root {
@@ -215,13 +216,36 @@ st.markdown("""
     background-color: #1877f2;
     color: white;
 }
+
+.tiktok-tag {
+    background-color: #000000;
+    color: white;
+}
+
+.twitter-tag {
+    background-color: #1DA1F2;
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stButton>button {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+    
+    .stTextInput>div>div>input {
+        padding: 10px;
+        font-size: 14px;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
-# الواجهة الرئيسية
+# Main interface
 st.markdown('<div class="header"><h1>🎬 نظام التحميل الفني المتقدم</h1></div>', unsafe_allow_html=True)
 
-# قسم روابط التواصل الاجتماعي
+# Social media links section
 col1, col2, col3 = st.columns([1,2,1])
 with col2:
     st.markdown("""
@@ -231,11 +255,11 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-# قسم الإدخال الرئيسي
+# Main input section
 with st.container():
-    url = st.text_input("", placeholder="الصق رابط يوتيوب أو إنستجرام أو فيسبوك هنا", label_visibility="collapsed", key="url_input")
+    url = st.text_input("", placeholder="الصق رابط يوتيوب أو إنستجرام أو فيسبوك أو تيك توك أو تويتر هنا", label_visibility="collapsed", key="url_input")
 
-# خيارات التحميل
+# Download options
 with st.expander("⚙️ خيارات التحميل المتقدمة", expanded=True):
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -250,7 +274,7 @@ with st.expander("⚙️ خيارات التحميل المتقدمة", expanded
     with col3:
         custom_name = st.text_input("اسم مخصص للملف:", placeholder="اختياري")
 
-# ميزة جديدة: تحديد نطاق التحميل
+# New feature: Download range
 with st.expander("🔍 خيارات إضافية (اختياري)"):
     st.markdown("""
     <div style="text-align: right; direction: rtl;">
@@ -262,39 +286,57 @@ with st.expander("🔍 خيارات إضافية (اختياري)"):
         start_time = st.number_input("وقت البداية (ثانية):", min_value=0, value=0)
     with col2:
         end_time = st.number_input("وقت النهاية (ثانية):", min_value=0, value=0)
+    
+    # Add metadata options
+    st.markdown("""
+    <div style="text-align: right; direction: rtl;">
+    <p>خيارات البيانات الوصفية (للفيديوهات والصوت فقط)</p>
+    </div>
+    """, unsafe_allow_html=True)
+    add_metadata = st.checkbox("إضافة البيانات الوصفية (العنوان، الفنان، إلخ)", value=True)
 
-# زر التحميل
+# Download button
 if st.button("🚀 بدء التحميل", use_container_width=True, type="primary"):
     if not url.strip():
         st.markdown('<div class="error-box">⚠️ يرجى إدخال رابط صحيح</div>', unsafe_allow_html=True)
     else:
         with st.spinner("⏳ جاري معالجة طلبك... الرجاء الانتظار"):
             try:
-                # تحديد نوع المنصة
+                # Determine platform type
                 if "instagram.com" in url:
                     platform = "Instagram"
                     platform_tag = "instagram-tag"
                     if "stories" in url.lower() or "reels" in url.lower() or format_option == "📼 قصص/ريلز":
                         format_option = "📼 قصص/ريلز"
-                elif "facebook.com" in url:
+                elif "facebook.com" in url or "fb.watch" in url:
                     platform = "Facebook"
                     platform_tag = "facebook-tag"
+                elif "tiktok.com" in url:
+                    platform = "TikTok"
+                    platform_tag = "tiktok-tag"
+                elif "twitter.com" in url or "x.com" in url:
+                    platform = "Twitter"
+                    platform_tag = "twitter-tag"
                 else:
                     platform = "YouTube"
                     platform_tag = "youtube-tag"
                 
-                # إنشاء مجلد التحميلات
-                uid = str(uuid.uuid4())
+                # Create downloads folder
                 os.makedirs("downloads", exist_ok=True)
                 
-                # بناء اسم الملف
+                # Build filename
                 if custom_name:
                     filename = f"{custom_name}.%(ext)s"
                 else:
                     filename = f"%(title)s.%(ext)s"
                 
-                # بناء أمر التحميل
+                # Build download command
+                cmd = []
+                
+                # Base command
                 if platform == "YouTube":
+                    cmd.append('yt-dlp')
+                    
                     if format_option == "🎥 فيديو":
                         quality_map = {
                             "أفضل جودة": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
@@ -303,53 +345,67 @@ if st.button("🚀 بدء التحميل", use_container_width=True, type="prima
                             "720p/HD": "22",
                             "480p/SD": "135+140"
                         }
-                        cmd = f'yt-dlp -f "{quality_map[quality]}" --merge-output-format mp4 -o "downloads/{filename}" "{url}"'
+                        cmd.extend(['-f', f'"{quality_map[quality]}"', '--merge-output-format', 'mp4'])
                     elif format_option == "🎵 صوت":
                         quality_map = {
-                            "أفضل جودة (320kbps)": "--audio-quality 320K",
-                            "جودة عالية (256kbps)": "--audio-quality 256K",
-                            "جودة متوسطة (192kbps)": "--audio-quality 192K"
+                            "أفضل جودة (320kbps)": "320K",
+                            "جودة عالية (256kbps)": "256K",
+                            "جودة متوسطة (192kbps)": "192K"
                         }
-                        cmd = f'yt-dlp -x --audio-format mp3 {quality_map[quality]} -o "downloads/{filename}" "{url}"'
-                else:  # Instagram أو Facebook
+                        cmd.extend(['-x', '--audio-format', 'mp3', '--audio-quality', quality_map[quality]])
+                else:  # Instagram, Facebook, TikTok, Twitter
+                    cmd.append('yt-dlp')
+                    
                     if format_option == "📼 قصص/ريلز":
-                        cmd = f'yt-dlp -f best -o "downloads/{filename}" "{url}" --cookies-from-browser chrome'
+                        cmd.extend(['-f', 'best', '--cookies-from-browser', 'chrome'])
                     else:
-                        cmd = f'yt-dlp -f best -o "downloads/{filename}" "{url}"'
+                        cmd.extend(['-f', 'best'])
                 
-                # إضافة نطاق التحميل إذا تم تحديده
+                # Add metadata if requested
+                if add_metadata and format_option != "📼 قصص/ريلز":
+                    cmd.extend(['--add-metadata', '--embed-thumbnail'])
+                
+                # Add download range if specified
                 if start_time > 0 or end_time > 0:
                     if end_time > start_time:
-                        cmd += f' --download-sections "*{start_time}-{end_time}"'
+                        cmd.extend(['--download-sections', f'"*{start_time}-{end_time}"'])
                     else:
                         st.markdown('<div class="warning-box">⚠️ وقت النهاية يجب أن يكون أكبر من وقت البداية</div>', unsafe_allow_html=True)
                 
-                # شريط التقدم (محاكاة)
+                # Add output path and URL
+                cmd.extend(['-o', f'"downloads/{filename}"', f'"{url}"'])
+                
+                # Convert command list to string
+                cmd_str = ' '.join(cmd)
+                
+                # Progress bar (simulated)
                 progress_bar = st.empty()
                 progress_bar.markdown('<div class="progress-bar"><div class="progress" style="width: 0%"></div></div>', unsafe_allow_html=True)
                 
-                for percent in range(0, 101, 10):
+                # Simulate progress
+                for percent in range(0, 101, 5):
                     progress_bar.markdown(f'<div class="progress-bar"><div class="progress" style="width: {percent}%"></div></div>', unsafe_allow_html=True)
                     time.sleep(0.1)
                 
-                # تنفيذ التحميل
-                result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+                # Execute download
+                result = subprocess.run(cmd_str, shell=True, check=True, capture_output=True, text=True)
                 
-                # البحث عن الملف المحمل
+                # Find downloaded file
                 downloaded_files = glob.glob("downloads/*")
                 if downloaded_files:
-                    # العثور على أحدث ملف
+                    # Find the newest file
                     latest_file = max(downloaded_files, key=os.path.getctime)
                     
                     with open(latest_file, "rb") as f:
                         file_name = os.path.basename(latest_file)
-                        file_size = os.path.getsize(latest_file) / (1024 * 1024)  # بالميغابايت
+                        file_size = os.path.getsize(latest_file) / (1024 * 1024)  # in MB
                         
                         st.markdown(f"""
                         <div class="success-box">
                             ✅ تم التحميل بنجاح! 
                             <span class="platform-tag {platform_tag}">{platform}</span>
                             <br>حجم الملف: {file_size:.2f} MB
+                            <br>نوع الملف: {format_option.split()[1]}
                         </div>
                         """, unsafe_allow_html=True)
                         
@@ -364,30 +420,31 @@ if st.button("🚀 بدء التحميل", use_container_width=True, type="prima
                                 use_container_width=True
                             )
                         with col2:
-                            st.write(f"**نوع الملف:** {format_option.split()[1]}")
                             st.write(f"**وقت التحميل:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                            st.write(f"**الجودة:** {quality}")
                     
-                    # حذف الملف المؤقت
+                    # Delete temporary file
                     os.remove(latest_file)
                 else:
                     st.markdown('<div class="error-box">❌ لم يتم العثور على الملف المحمل</div>', unsafe_allow_html=True)
                 
-                # إظهار تفاصيل التحميل
+                # Show download details
                 with st.expander("📊 تفاصيل التحميل"):
                     st.code(result.stdout)
                     
             except subprocess.CalledProcessError as e:
-                st.markdown(f'<div class="error-box">❌ خطأ في التحميل: {e.stderr}</div>', unsafe_allow_html=True)
+                error_msg = e.stderr if e.stderr else "حدث خطأ أثناء عملية التحميل"
+                st.markdown(f'<div class="error-box">❌ خطأ في التحميل: {error_msg}</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.markdown(f'<div class="error-box">❌ حدث خطأ غير متوقع: {str(e)}</div>', unsafe_allow_html=True)
 
-# قسم جديد: كيفية الاستخدام
+# How-to guide section
 with st.expander("❓ دليل الاستخدام", expanded=False):
     st.markdown("""
     <div style="text-align: right; direction: rtl;">
     <h3>كيفية استخدام النظام:</h3>
     <ol>
-        <li>قم بنسخ رابط الفيديو أو المنشور من YouTube أو Instagram أو Facebook</li>
+        <li>قم بنسخ رابط الفيديو أو المنشور من YouTube أو Instagram أو Facebook أو TikTok أو Twitter</li>
         <li>الصق الرابط في الحقل المخصص بالأعلى</li>
         <li>اختر نوع الملف الذي تريد تحميله (فيديو، صوت، أو قصص/ريلز)</li>
         <li>حدد الجودة المطلوبة</li>
@@ -401,11 +458,20 @@ with st.expander("❓ دليل الاستخدام", expanded=False):
         <li>لتحميل القصص أو الريلز من Instagram، تأكد من أن الحساب عام</li>
         <li>لتحميل مقاطع طويلة من YouTube، يمكنك تحديد نطاق زمني من الخيارات الإضافية</li>
         <li>لأفضل النتائج، استخدم اتصال إنترنت مستقر</li>
+        <li>لتحميل منصات مثل Facebook وInstagram، قد تحتاج إلى تسجيل الدخول في المتصفح أولاً</li>
+    </ul>
+    
+    <h3>الميزات الجديدة:</h3>
+    <ul>
+        <li>دعم منصات إضافية: TikTok وTwitter</li>
+        <li>إضافة البيانات الوصفية تلقائياً للفيديوهات والمقاطع الصوتية</li>
+        <li>واجهة مستخدم أكثر تفاعلية وسريعة</li>
+        <li>تحسينات في أداء التحميل</li>
     </ul>
     </div>
     """, unsafe_allow_html=True)
 
-# تذييل الصفحة
+# Page footer
 st.markdown("""
 <div class="footer">
     <p><strong>نظام التحميل الفني المتقدم © 2025</strong></p>
@@ -414,7 +480,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# روابط التواصل الاجتماعي في الشريط الجانبي
+# Social media links in sidebar
 with st.sidebar:
     st.markdown("## 📱 تابعنا على")
     if st.button("إنستجرام @mc.love.98", key="insta"):
@@ -427,13 +493,23 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align: right; direction: rtl;">
     <ul>
-        <li>دعم تحميل القصص والريلز</li>
-        <li>إمكانية تحديد جزء من الفيديو</li>
-        <li>شريط تقدم مرئي</li>
-        <li>تحميل أسرع وأكثر استقراراً</li>
+        <li>دعم منصات جديدة: TikTok وTwitter</li>
+        <li>إضافة البيانات الوصفية تلقائياً</li>
+        <li>تحسينات في أداء التحميل</li>
+        <li>واجهة مستخدم محسنة</li>
     </ul>
     </div>
     """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown("### 🛠️ حالة النظام")
+    st.markdown("""
+    <div style="text-align: right; direction: rtl;">
+    <p><strong>الإصدار:</strong> 4.1</p>
+    <p><strong>الحالة:</strong> نشط</p>
+    <p><strong>آخر تحديث:</strong> {}</p>
+    </div>
+    """.format(datetime.now().strftime("%Y-%m-%d")), unsafe_allow_html=True)
     
     st.markdown("---")
     st.markdown("### 🎨 ألوان التصميم")
