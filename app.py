@@ -14,83 +14,134 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# تصميم متحرك مع مؤثرات
-st.markdown("""
+# تصميم متحرك مع مؤثرات باستخدام الألوان المحددة
+st.markdown(f"""
 <style>
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(10px);}
-    to {opacity: 1; transform: translateY(0);}
-}
+:root {{
+    --primary-color: #DE7A5F;
+    --secondary-color: #F3F2DE;
+    --text-color: #333333;
+    --light-text: #FFFFFF;
+}}
 
-@keyframes pulse {
-    0% {transform: scale(1);}
-    50% {transform: scale(1.02);}
-    100% {transform: scale(1);}
-}
+@keyframes fadeIn {{
+    from {{opacity: 0; transform: translateY(10px);}}
+    to {{opacity: 1; transform: translateY(0);}}
+}}
 
-.stApp {
-    background-color: #fff9f9;
+@keyframes pulse {{
+    0% {{transform: scale(1);}}
+    50% {{transform: scale(1.02);}}
+    100% {{transform: scale(1);}}
+}}
+
+.stApp {{
+    background-color: var(--secondary-color);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     animation: fadeIn 0.5s ease-out;
-}
+    color: var(--text-color);
+}}
 
-.stButton>button {
-    background-color: #5e035e;
-    color: white;
+.stButton>button {{
+    background-color: var(--primary-color);
+    color: var(--light-text);
     border: none;
     border-radius: 12px;
     padding: 12px 28px;
     font-weight: bold;
     transition: all 0.3s;
     animation: fadeIn 0.8s ease-out;
-}
+}}
 
-.stButton>button:hover {
-    background-color: #8a068a;
+.stButton>button:hover {{
+    background-color: #C56950;
     transform: scale(1.03);
-    box-shadow: 0 4px 12px rgba(94, 3, 94, 0.2);
-}
+    box-shadow: 0 4px 12px rgba(222, 122, 95, 0.3);
+}}
 
-.stDownloadButton>button {
-    background-color: #00a86b;
-    color: white;
+.stDownloadButton>button {{
+    background-color: var(--primary-color);
+    color: var(--light-text);
     border-radius: 12px;
     padding: 12px 28px;
     animation: pulse 2s infinite;
-}
+}}
 
-.stDownloadButton>button:hover {
+.stDownloadButton>button:hover {{
     animation: none;
     transform: scale(1.03);
-}
+    background-color: #C56950;
+}}
 
-.stProgress>div>div>div>div {
-    background-color: #5e035e !important;
-}
+.stProgress>div>div>div>div {{
+    background-color: var(--primary-color) !important;
+}}
 
-.css-1aumxhk {
-    background-color: white;
+.css-1aumxhk {{
+    background-color: var(--secondary-color);
+    border: 1px solid var(--primary-color);
     border-radius: 16px;
     padding: 20px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     margin-bottom: 20px;
     transition: all 0.3s;
-}
+}}
 
-.css-1aumxhk:hover {
+.css-1aumxhk:hover {{
     box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-}
+    border-color: #C56950;
+}}
 
-.header {
-    color: #5e035e;
+.header {{
+    color: var(--primary-color);
     text-align: center;
     margin-bottom: 30px;
     animation: fadeIn 0.6s ease-out;
-}
+    padding: 15px;
+    background-color: rgba(222, 122, 95, 0.1);
+    border-radius: 15px;
+}}
 
-.success-animation {
+.success-animation {{
     animation: fadeIn 0.5s, pulse 1s 2;
-}
+}}
+
+.stTextInput>div>div>input {{
+    border: 2px solid var(--primary-color) !important;
+    border-radius: 12px !important;
+    padding: 10px !important;
+}}
+
+.stSelectbox>div>div>select {{
+    border: 2px solid var(--primary-color) !important;
+    border-radius: 12px !important;
+}}
+
+.stRadio>div {{
+    flex-direction: row !important;
+    gap: 20px;
+}}
+
+.stRadio>div>label {{
+    margin-right: 15px;
+}}
+
+.stExpander {{
+    border: 1px solid var(--primary-color) !important;
+    border-radius: 12px !important;
+}}
+
+.stExpander:hover {{
+    border-color: #C56950 !important;
+}}
+
+footer {{
+    background-color: var(--primary-color) !important;
+    color: var(--light-text) !important;
+    padding: 15px !important;
+    border-radius: 10px !important;
+    text-align: center;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -270,7 +321,7 @@ with st.expander("❓ مساعدة", expanded=False):
 # تذييل الصفحة
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; padding: 20px; background-color: #f0f0f0; border-radius: 10px;">
+<div style="text-align: center; padding: 20px; background-color: #DE7A5F; color: white; border-radius: 10px;">
     <p>نظام التحميل الذكي - إصدار 2.0</p>
     <p>تم التطوير بواسطة طالب الأنظمة الطبية</p>
 </div>
