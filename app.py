@@ -4,7 +4,29 @@ import os
 import glob
 from datetime import datetime
 import time
-import webbrowser
+import re
+
+def safe_escape_url(url):
+    """Safe URL escaping function compatible with all Python versions"""
+    try:
+        # Try using shlex.quote (Python 3.3+)
+        import shlex
+        if hasattr(shlex, 'quote'):
+            return shlex.quote(url)
+    except:
+        pass
+    
+    try:
+        # Fallback to pipes.quote (deprecated but available)
+        import pipes
+        return pipes.quote(url)
+    except:
+        pass
+    
+    # Manual escaping as last resort
+    import re
+    # Escape special shell characters
+    return re.sub(r'([;&|`$(){}[\]<>"\'\s])', r'\\\1', url)
 
 # إعدادات الصفحة
 st.set_page_config(
@@ -40,6 +62,7 @@ st.markdown(f"""
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     animation: fadeIn 0.5s ease-out;
     color: var(--text-color);
+    direction: rtl;
 }}
 
 .stButton>button {{
@@ -110,6 +133,7 @@ st.markdown(f"""
     border: 2px solid var(--primary-color) !important;
     border-radius: 12px !important;
     padding: 10px !important;
+    direction: rtl;
 }}
 
 .stSelectbox>div>div>select {{
@@ -120,6 +144,7 @@ st.markdown(f"""
 .stRadio>div {{
     flex-direction: row !important;
     gap: 20px;
+    direction: rtl;
 }}
 
 .stRadio>div>label {{
@@ -150,6 +175,15 @@ footer {{
     border-radius: 10px !important;
     text-align: center;
 }}
+
+/* RTL support */
+.stApp * {{
+    text-align: right;
+}}
+
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
+    text-align: center;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -157,7 +191,39 @@ footer {{
 st.markdown('<div class="header"><h1>🎬 نظام التحميل الذكي</h1></div>', unsafe_allow_html=True)
 
 # كشف المنصة
+def validate_url(url):
+    """Validate and sanitize URL input to prevent command injection"""
+    if not url or not isinstance(url, str):
+        return False, "Invalid URL"
+    
+    # Remove any whitespace
+    url = url.strip()
+    
+    # Check for basic URL pattern
+    url_pattern = re.compile(
+        r'^https?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    
+    if not url_pattern.match(url):
+        return False, "URL format is invalid"
+    
+    # Check for dangerous characters that could be used for command injection
+    dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '{', '}', '<', '>', '"', "'"]
+    if any(char in url for char in dangerous_chars):
+        return False, "URL contains potentially dangerous characters"
+    
+    # Additional length check
+    if len(url) > 2048:
+        return False, "URL is too long"
+    
+    return True, url
+
 def detect_platform(url):
+    """Detect the platform from the URL"""
     if not url:
         return "Unknown"
     
@@ -180,13 +246,47 @@ def detect_platform(url):
         return "Twitter"
     return "Unknown"
 
+def ensure_downloads_directory():
+    """Ensure downloads directory exists"""
+    if not os.path.exists("downloads"):
+        os.makedirs("downloads")
+
+def clean_old_files():
+    """Clean old downloaded files"""
+    try:
+        downloads_dir = "downloads"
+        if os.path.exists(downloads_dir):
+            for file_path in glob.glob(os.path.join(downloads_dir, "*")):
+                if os.path.isfile(file_path):
+                    # Remove files older than 1 hour
+                    if time.time() - os.path.getctime(file_path) > 3600:
+                        os.remove(file_path)
+    except Exception as e:
+        st.warning(f"تنبيه: فشل في تنظيف الملفات القديمة: {str(e)}")
+
+# Initialize session state
+if 'download_progress' not in st.session_state:
+    st.session_state.download_progress = 0
+
+# Clean old files on startup
+clean_old_files()
+
 # قسم الإدخال
-url = st.text_input("", placeholder="الصق رابط الفيديو هنا (يدعم يوتيوب، إنستجرام، فيسبوك، تيك توك)", 
-                   label_visibility="collapsed")
+url = st.text_input(
+    "رابط الفيديو:", 
+    placeholder="الصق رابط الفيديو هنا (يدعم يوتيوب، إنستجرام، فيسبوك، تيك توك، تويتر)", 
+    label_visibility="collapsed"
+)
 
 if url:
-    platform = detect_platform(url)
-    st.info(f"تم التعرف على المنصة: {platform}")
+    is_valid, validated_url = validate_url(url)
+    if not is_valid:
+        st.error(f"❌ خطأ في الرابط: {validated_url}")
+        url = None  # Reset URL to prevent further processing
+    else:
+        url = validated_url  # Use the validated URL
+        platform = detect_platform(url)
+        st.info(f"🔍 تم التعرف على المنصة: {platform}")
 
 # خيارات متقدمة
 with st.expander("⚙️ خيارات التحميل المتقدمة", expanded=True):
@@ -206,7 +306,7 @@ with st.expander("⚙️ خيارات التحميل المتقدمة", expanded
     with col3:
         custom_name = st.text_input("اسم الملف (اختياري):", placeholder="اسم الملف المخصص")
         
-    # خيارات إضافية (بدلاً من expander متداخل)
+    # خيارات إضافية
     st.markdown('<div class="custom-container"><h4>خيارات إضافية</h4></div>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
@@ -222,13 +322,23 @@ if st.button("🚀 بدء التحميل", use_container_width=True, type="prima
     if not url.strip():
         st.error("⚠️ يرجى إدخال رابط صحيح")
     else:
+        # Ensure downloads directory exists
+        ensure_downloads_directory()
+        
         with st.spinner("جاري معالجة طلبك... الرجاء الانتظار"):
             try:
                 # شريط التقدم المتحرك
                 progress_bar = st.progress(0)
+                status_text = st.empty()
                 
                 # محاكاة التقدم
-                for percent in range(0, 101, 5):
+                status_text.text("🔍 جاري فحص الرابط...")
+                for percent in range(0, 21, 5):
+                    time.sleep(0.1)
+                    progress_bar.progress(percent)
+                
+                status_text.text("⚙️ جاري إعداد خيارات التحميل...")
+                for percent in range(21, 41, 5):
                     time.sleep(0.1)
                     progress_bar.progress(percent)
                 
@@ -246,16 +356,18 @@ if st.button("🚀 بدء التحميل", use_container_width=True, type="prima
                     else:
                         cmd.extend(["-f", "bestvideo+bestaudio/best"])
                 elif format_option == "صوت":
-                    cmd.extend(["-x", "--audio-format", "mp3"])
+                    cmd.extend(["-x", "--audio-format", "mp3", "--audio-quality", "0"])
                     if quality == "192kbps":
-                        cmd.extend(["--audio-quality", "192K"])
+                        cmd.extend(["--postprocessor-args", "-ab 192k"])
                     elif quality == "128kbps":
-                        cmd.extend(["--audio-quality", "128K"])
+                        cmd.extend(["--postprocessor-args", "-ab 128k"])
+                    else:
+                        cmd.extend(["--postprocessor-args", "-ab 320k"])
                 
                 # خيارات إضافية
                 if add_metadata:
                     cmd.append("--add-metadata")
-                if embed_thumbnail:
+                if embed_thumbnail and format_option == "صوت":
                     cmd.append("--embed-thumbnail")
                 if start_time > 0 or end_time > 0:
                     if end_time > start_time:
@@ -263,46 +375,77 @@ if st.button("🚀 بدء التحميل", use_container_width=True, type="prima
                 
                 # اسم الملف المخصص
                 if custom_name:
-                    cmd.extend(["-o", f"downloads/{custom_name}.%(ext)s"])
+                    safe_name = "".join(c for c in custom_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                    cmd.extend(["-o", f"downloads/{safe_name}.%(ext)s"])
                 else:
                     cmd.extend(["-o", "downloads/%(title)s.%(ext)s"])
                 
+                # Add the URL directly since it's already validated
                 cmd.append(url)
                 
+                status_text.text("⬇️ جاري التحميل...")
+                for percent in range(41, 91, 10):
+                    time.sleep(0.2)
+                    progress_bar.progress(percent)
+                
                 # تنفيذ التحميل
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                
+                status_text.text("📁 جاري معالجة الملف...")
+                for percent in range(91, 101, 3):
+                    time.sleep(0.1)
+                    progress_bar.progress(percent)
                 
                 # العثور على الملف المحمل
                 downloaded_files = glob.glob("downloads/*")
+                downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+                
                 if downloaded_files:
                     latest_file = max(downloaded_files, key=os.path.getctime)
                     file_size = os.path.getsize(latest_file) / (1024 * 1024)  # بالميغابايت
                     
-                    with open(latest_file, "rb") as f:
-                        st.markdown(f'<div class="success-animation">', unsafe_allow_html=True)
-                        st.success(f"✅ تم التحميل بنجاح! حجم الملف: {file_size:.2f} MB")
-                        st.balloons()
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.download_button(
-                                "💾 حفظ الملف",
-                                data=f,
-                                file_name=os.path.basename(latest_file),
-                                use_container_width=True
-                            )
-                        with col2:
-                            st.write(f"**نوع الملف:** {format_option}")
-                            st.write(f"**الجودة:** {quality}")
-                            st.write(f"**وقت التحميل:** {datetime.now().strftime('%H:%M:%S')}")
+                    # Clear progress indicators
+                    progress_bar.empty()
+                    status_text.empty()
                     
-                    # تنظيف الملفات المؤقتة
-                    os.remove(latest_file)
+                    with open(latest_file, "rb") as f:
+                        file_data = f.read()
+                        
+                    st.markdown(f'<div class="success-animation">', unsafe_allow_html=True)
+                    st.success(f"✅ تم التحميل بنجاح! حجم الملف: {file_size:.2f} MB")
+                    st.balloons()
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            "💾 حفظ الملف",
+                            data=file_data,
+                            file_name=os.path.basename(latest_file),
+                            use_container_width=True
+                        )
+                    with col2:
+                        st.write(f"**نوع الملف:** {format_option}")
+                        st.write(f"**الجودة:** {quality}")
+                        st.write(f"**وقت التحميل:** {datetime.now().strftime('%H:%M:%S')}")
+                        if custom_name:
+                            st.write(f"**الاسم المخصص:** {custom_name}")
+                    
+                    # تنظيف الملف المؤقت
+                    try:
+                        os.remove(latest_file)
+                    except Exception as e:
+                        st.warning(f"تنبيه: فشل في حذف الملف المؤقت: {str(e)}")
+                        
+                    st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.error("❌ فشل في التحميل، يرجى التحقق من الرابط وإعادة المحاولة")
+                    if result.stderr:
+                        st.error(f"تفاصيل الخطأ: {result.stderr}")
                 
+            except subprocess.TimeoutExpired:
+                st.error("❌ انتهت مهلة التحميل. يرجى المحاولة مرة أخرى مع فيديو أصغر حجماً")
             except subprocess.CalledProcessError as e:
-                st.error(f"❌ خطأ في التحميل: {e.stderr}")
+                st.error(f"❌ خطأ في التحميل: {e.stderr if e.stderr else 'خطأ غير معروف'}")
             except Exception as e:
                 st.error(f"❌ حدث خطأ غير متوقع: {str(e)}")
 
@@ -317,20 +460,47 @@ with st.expander("❓ مساعدة", expanded=False):
     5. اضغط على زر "حفظ الملف" لتنزيله
     
     **المنصات المدعومة:**
-    - يوتيوب
-    - إنستجرام (منشورات، ريلز، قصص)
-    - فيسبوك
-    - تيك توك
-    - تويتر
+    - يوتيوب (YouTube)
+    - إنستجرام (Instagram) - منشورات، ريلز، قصص
+    - فيسبوك (Facebook)
+    - تيك توك (TikTok)
+    - تويتر/إكس (Twitter/X)
+    
+    **نصائح مهمة:**
+    - تأكد من أن الرابط صحيح وقابل للوصول
+    - بعض المحتوى قد يكون محمي بحقوق الطبع والنشر
+    - أوقات التحميل تعتمد على حجم الفيديو وسرعة الإنترنت
+    - يتم حذف الملفات تلقائياً بعد التحميل لحماية الخصوصية
     
     **للاستفسارات والدعم:** rshqrwsy@gmail.com
+    """)
+
+# معلومات النظام
+with st.expander("ℹ️ معلومات النظام", expanded=False):
+    st.markdown("""
+    **متطلبات النظام:**
+    - يتطلب تثبيت yt-dlp
+    - يدعم جميع المتصفحات الحديثة
+    - يعمل على جميع أنظمة التشغيل
+    
+    **الإصدار الحالي:** 2.0
+    
+    **آخر تحديث:** يونيو 2025
+    
+    **الميزات الجديدة:**
+    - دعم محسن للمنصات العربية
+    - واجهة مستخدم محسنة
+    - تحميل أسرع وأكثر استقراراً
+    - دعم أفضل للجودة العالية
     """)
 
 # تذييل الصفحة
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; padding: 20px; background-color: #DE7A5F; color: white; border-radius: 10px;">
-    <p>نظام التحميل الذكي - إصدار 2.0</p>
+<div style="text-align: center; padding: 20px; background-color: #DE7A5F; color: white; border-radius: 10px; margin-top: 30px;">
+    <h3>🎬 نظام التحميل الذكي - الإصدار 2.0</h3>
     <p>تم التطوير بواسطة طالب الأنظمة الطبية</p>
+    <p>📧 للدعم والاستفسارات: rshqrwsy@gmail.com</p>
+    <p>⚡ مدعوم بتقنية yt-dlp و Streamlit</p>
 </div>
 """, unsafe_allow_html=True)
